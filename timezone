@@ -1,0 +1,103 @@
+#!/bin/sh
+#
+# timezone(1)
+# Convenience wrapper around getting and setting the system-wide timezone 
+#
+# Charlotte Koch <cfkoch@edgebsd.org>
+#
+
+set -e
+
+PROGNAME=$(basename $0)
+
+usage() {
+  echo "${PROGNAME}: usage: ${PROGNAME} [command] [options]" 1>&2
+  echo "    ${PROGNAME} get" 1>&2
+  echo "    ${PROGNAME} list" 1>&2
+  echo "    ${PROGNAME} set <timezone>" 1>&2
+  echo "    ${PROGNAME} help" 1>&2
+}
+
+note() {
+  echo "${PROGNAME}: $1" 1>&2
+}
+
+complain() {
+  note "error: $1"
+  exit 1
+}
+
+THE_SYMLINK=/etc/localtime
+ZONE_DATABASE=/usr/share/zoneinfo
+
+# In case specific systems need overrides:
+case "$(uname -s)" in
+*)
+  # nothing special
+  ;;
+esac
+
+COMMAND=get
+
+if [ $# -gt 0 ]; then
+  case "$1" in
+  get)
+    # nothing to do, the default is already "get"
+    ;;
+  help)
+    usage
+    exit 0
+    ;;
+  list)
+    COMMAND=list
+    shift
+    ;;
+  set)
+    COMMAND=set
+    shift
+    ;;
+  *)
+    complain "unknown command \"$1\""
+    ;;
+  esac
+fi
+
+do_get() {
+  readlink ${THE_SYMLINK} | sed s,${ZONE_DATABASE}/,,
+}
+
+do_list() {
+  find ${ZONE_DATABASE} -type f | sed s,${ZONE_DATABASE}/,, | ${PAGER:-less}
+}
+
+do_set() {
+  given_zone="$1"
+
+  if [ -z "${given_zone}" ]; then
+    complain "expected a zone"
+  fi
+
+  candidate="${ZONE_DATABASE}/${given_zone}"
+
+  if [ ! -f "${candidate}" ]; then
+    complain "no such timezone file \"${given_zone}\""
+  fi
+
+  if [ "${candidate}" = "$(do_get)" ]; then
+    note "timezone is already set to \"${given_zone}\""
+    return
+  fi
+
+  ln -sf "${candidate}" ${THE_SYMLINK}
+}
+
+case "${COMMAND}" in
+get)
+  do_get
+  ;;
+list)
+  do_list
+  ;;
+set)
+  do_set "$1"
+esac
