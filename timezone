@@ -125,4 +125,5 @@ list)
   ;;
 set)
   do_set "$1"
+  ;;
 esac
